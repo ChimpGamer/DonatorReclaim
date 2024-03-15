@@ -1,7 +1,8 @@
 name: DonatorReclaim
-version: ${project.version}
+version: ${version}
 main: nl.chimpgamer.donatorreclaim.DonatorReclaim
 authors: [ChimpGamer]
+api-version: '1.13'
 
 commands:
   reclaim:

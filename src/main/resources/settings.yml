@@ -1,5 +1,6 @@
 onlyReclaimHighestRank: false
 executeRedeemOnFirstJoin: false
+reclaimSound: 'ENTITY_PLAYER_LEVELUP'
 
 ranks:
   vip:

@@ -1,14 +1,19 @@
 package nl.chimpgamer.donatorreclaim.listeners;
 
 import nl.chimpgamer.donatorreclaim.DonatorReclaim;
+import nl.chimpgamer.donatorreclaim.handlers.DonatorsHandler;
+import nl.chimpgamer.donatorreclaim.handlers.MessagesHandler;
+import nl.chimpgamer.donatorreclaim.handlers.SettingsHandler;
 import nl.chimpgamer.donatorreclaim.models.Rank;
-import nl.chimpgamer.donatorreclaim.configuration.Message;
-
+import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class JoinListener implements Listener {
     private final DonatorReclaim donatorReclaim;
@@ -21,31 +26,38 @@ public class JoinListener implements Listener {
     public void onJoin(PlayerJoinEvent event) {
         final Player player = event.getPlayer();
 
-        if (donatorReclaim.getSettings().executeRedeemOnFirstJoin()) {
+        SettingsHandler settingsHandler = donatorReclaim.getSettingsHandler();
+        MessagesHandler messagesHandler = donatorReclaim.getMessagesHandler();
+        DonatorsHandler donatorsHandler = donatorReclaim.getDonatorsHandler();
+
+        if (settingsHandler.executeRedeemOnFirstJoin()) {
             if (player.hasPlayedBefore()) {
                 return;
             }
-            if (donatorReclaim.getSettings().isOnlyReclaimHighestRank()) {
-                Rank rank = donatorReclaim.getSettings().getHighestAvailableRank(player);
+            if (settingsHandler.isOnlyReclaimHighestRank()) {
+                Rank rank = settingsHandler.getHighestAvailableRank(player);
 
                 if (rank == null) return;
-                donatorReclaim.getDonators().redeemRank(player, rank);
-                player.sendMessage(donatorReclaim.getMessages().getString(Message.SUCCESSFULLYRECLAIMEDRANK)
-                        .replace("%rank%", rank.getName()));
+                donatorsHandler.redeemRank(player, rank);
+                donatorReclaim.sendMessage(player, messagesHandler.successfullyReclaimedRank().replace("%rank%", rank.getName()));
+                Sound reclaimSound = settingsHandler.reclaimSound();
+                if (reclaimSound != null) {
+                    player.playSound(player.getLocation(), reclaimSound, 1.0F, 1.0F);
+                }
             } else {
-                for (Rank rank : donatorReclaim.getSettings().getAvailableRanks(player)) {
-                    if (!donatorReclaim.getDonators().hasRedeemed(player, rank)) {
-                        donatorReclaim.getDonators().redeemRank(player, rank);
-                        player.sendMessage(donatorReclaim.getMessages().getString(Message.SUCCESSFULLYRECLAIMEDRANK)
-                                .replace("%rank%", rank.getName()));
-                    }
+                List<Rank> toRedeem = settingsHandler.getAvailableRanks(player)
+                        .stream().filter(rank -> !donatorsHandler.hasRedeemed(player, rank))
+                        .collect(Collectors.toList());
+
+                donatorsHandler.redeemRanks(player, toRedeem);
+                toRedeem.forEach(rank -> donatorReclaim.sendMessage(player, messagesHandler.successfullyReclaimedRank().replace("%rank%", rank.getName())));
+                Sound reclaimSound = settingsHandler.reclaimSound();
+                if (reclaimSound != null) {
+                    player.playSound(player.getLocation(), reclaimSound, 1.0F, 1.0F);
                 }
             }
-            return;
-        }
-
-        if (!donatorReclaim.getDonators().hasRedeemed(player, donatorReclaim.getSettings().getHighestAvailableRank(player))) {
-            player.sendMessage(donatorReclaim.getMessages().getString(Message.RECLAIMJOINNOTIFICATION));
+        } else if (!donatorsHandler.hasRedeemed(player, settingsHandler.getHighestAvailableRank(player))) {
+            donatorReclaim.sendMessage(player, messagesHandler.reclaimJoinNotification());
         }
     }
 }

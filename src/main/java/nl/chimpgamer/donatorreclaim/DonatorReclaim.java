@@ -1,27 +1,50 @@
 package nl.chimpgamer.donatorreclaim;
 
 import nl.chimpgamer.donatorreclaim.commands.ReclaimCommand;
-import nl.chimpgamer.donatorreclaim.configuration.Donators;
-import nl.chimpgamer.donatorreclaim.configuration.Messages;
-import nl.chimpgamer.donatorreclaim.configuration.Settings;
+import nl.chimpgamer.donatorreclaim.handlers.DonatorsHandler;
+import nl.chimpgamer.donatorreclaim.handlers.MessagesHandler;
+import nl.chimpgamer.donatorreclaim.handlers.SettingsHandler;
 import nl.chimpgamer.donatorreclaim.listeners.JoinListener;
+import nl.chimpgamer.donatorreclaim.utils.Utils;
+import org.bukkit.command.CommandSender;
 import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jetbrains.annotations.NotNull;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.logging.Level;
 
 public final class DonatorReclaim extends JavaPlugin {
-    private Settings settings;
-    private Messages messages;
-    private Donators donators;
+
+    // Handlers
+    @NotNull
+    private final SettingsHandler settingsHandler = new SettingsHandler(this);
+    @NotNull
+    private final MessagesHandler messagesHandler = new MessagesHandler(this);
+    @NotNull
+    private final DonatorsHandler donatorsHandler = new DonatorsHandler(this);
+
+    public DonatorReclaim() throws IOException {
+    }
+
+    @Override
+    public void onLoad() {
+        // Make sure that the DonatorReclaim folder exists.
+        try {
+            Path dataFolderPath = getDataFolder().toPath();
+            if (!Files.isDirectory(getDataFolder().toPath())) {
+                Files.createDirectories(dataFolderPath);
+            }
+        } catch (IOException ex) {
+            getLogger().log(Level.SEVERE, "Unable to create plugin directory", ex);
+        }
+    }
 
     @Override
     public void onEnable() {
         // Plugin startup logic
-
-        getDataFolder().mkdirs();
-        this.initSettings();
-        this.initMessages();
-        this.initDonators();
-
         this.getCommand("reclaim").setExecutor(new ReclaimCommand(this));
         this.getServer().getPluginManager().registerEvents(new JoinListener(this), this);
     }
@@ -29,37 +52,26 @@ public final class DonatorReclaim extends JavaPlugin {
     @Override
     public void onDisable() {
         // Plugin shutdown logic
-
-        this.settings = null;
-        this.messages = null;
-        this.donators = null;
         HandlerList.unregisterAll(this);
+        donatorsHandler.writeJson();
     }
 
-    private void initSettings() {
-        this.settings = new Settings(this);
-        this.settings.load();
+    public void sendMessage(CommandSender sender, String message) {
+        sender.sendMessage(Utils.formatColorCodes(message));
     }
 
-    private void initMessages() {
-        this.messages = new Messages(this);
-        this.messages.load();
+    @NotNull
+    public SettingsHandler getSettingsHandler() {
+        return settingsHandler;
     }
 
-    private void initDonators() {
-        this.donators = new Donators(this);
-        this.donators.load();
+    @NotNull
+    public MessagesHandler getMessagesHandler() {
+        return messagesHandler;
     }
 
-    public Settings getSettings() {
-        return settings;
-    }
-
-    public Messages getMessages() {
-        return messages;
-    }
-
-    public Donators getDonators() {
-        return donators;
+    @NotNull
+    public DonatorsHandler getDonatorsHandler() {
+        return donatorsHandler;
     }
 }

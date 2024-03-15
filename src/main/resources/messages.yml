@@ -1,0 +1,10 @@
+alreadyClaimedRank: "&6You've already reclaimed the rewards for your &e%rank% &6rank."
+successfullyReclaimedRank: "&6You've successfully reclaimed the rewards for your &e%rank% &6rank."
+reclaimRankInvalid: "&6The rank &e%rank &6does not exist in the config!"
+reclaimJoinNotification: "&6You have unclaimed rank rewards. Claim them now with &e/reclaim!"
+nothingToReclaim: "&6You have nothing to reclaim at the moment."
+playerOffline: "&6The player &e%player% &6is offline."
+noPermission: "&cYou have no permission to use this command!"
+reload: "&6Successfully reloaded the config and messages files."
+
+config-version: 1

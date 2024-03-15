@@ -1,17 +1,22 @@
 package nl.chimpgamer.donatorreclaim.commands;
 
 import nl.chimpgamer.donatorreclaim.DonatorReclaim;
-import nl.chimpgamer.donatorreclaim.configuration.Message;
+import nl.chimpgamer.donatorreclaim.handlers.DonatorsHandler;
+import nl.chimpgamer.donatorreclaim.handlers.MessagesHandler;
+import nl.chimpgamer.donatorreclaim.handlers.SettingsHandler;
 import nl.chimpgamer.donatorreclaim.models.Rank;
 import nl.chimpgamer.donatorreclaim.utils.Utils;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.Sound;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class ReclaimCommand implements CommandExecutor {
     private final DonatorReclaim donatorReclaim;
@@ -25,32 +30,38 @@ public class ReclaimCommand implements CommandExecutor {
         if (!(sender instanceof Player)) {
             return false;
         }
+        SettingsHandler settingsHandler = donatorReclaim.getSettingsHandler();
+        MessagesHandler messagesHandler = donatorReclaim.getMessagesHandler();
+        DonatorsHandler donatorsHandler = donatorReclaim.getDonatorsHandler();
+
         Player player = (Player) sender;
         if (args.length == 0) {
-            if (donatorReclaim.getSettings().isOnlyReclaimHighestRank()) {
-                Rank rank = donatorReclaim.getSettings().getHighestAvailableRank(player);
+            if (settingsHandler.isOnlyReclaimHighestRank()) {
+                Rank rank = settingsHandler.getHighestAvailableRank(player);
                 if (rank == null) {
-                    player.sendMessage(donatorReclaim.getMessages().getString(Message.NOTHINGTORECLAIM));
+                    donatorReclaim.sendMessage(player, messagesHandler.nothingToReclaim());
                     return true;
                 }
-                if (donatorReclaim.getDonators().hasRedeemed(player, rank)) {
-                    player.sendMessage(donatorReclaim.getMessages().getString(Message.ALREADYCLAIMEDRANK)
-                            .replace("%rank%", rank.getName()));
+                if (donatorsHandler.hasRedeemed(player, rank)) {
+                    donatorReclaim.sendMessage(player, messagesHandler.alreadyClaimedRank().replace("%rank%", rank.getName()));
                 } else {
-                    donatorReclaim.getDonators().redeemRank(player, rank);
-                    player.sendMessage(donatorReclaim.getMessages().getString(Message.SUCCESSFULLYRECLAIMEDRANK)
-                            .replace("%rank%", rank.getName()));
+                    donatorsHandler.redeemRank(player, rank);
+                    donatorReclaim.sendMessage(player, messagesHandler.successfullyReclaimedRank().replace("%rank%", rank.getName()));
+                    Sound reclaimSound = settingsHandler.reclaimSound();
+                    if (reclaimSound != null) {
+                        player.playSound(player.getLocation(), reclaimSound, 1.0F, 1.0F);
+                    }
                 }
             } else {
-                for (Rank rank : donatorReclaim.getSettings().getAvailableRanks(player)) {
-                    if (donatorReclaim.getDonators().hasRedeemed(player, rank)) {
-                        player.sendMessage(donatorReclaim.getMessages().getString(Message.ALREADYCLAIMEDRANK)
-                                .replace("%rank%", rank.getName()));
-                    } else {
-                        donatorReclaim.getDonators().redeemRank(player, rank);
-                        player.sendMessage(donatorReclaim.getMessages().getString(Message.SUCCESSFULLYRECLAIMEDRANK)
-                                .replace("%rank%", rank.getName()));
-                    }
+                List<Rank> toRedeem = settingsHandler.getAvailableRanks(player)
+                        .stream().filter(rank -> !donatorsHandler.hasRedeemed(player, rank))
+                        .collect(Collectors.toList());
+
+                donatorsHandler.redeemRanks(player, toRedeem);
+                toRedeem.forEach(rank -> donatorReclaim.sendMessage(player, messagesHandler.successfullyReclaimedRank().replace("%rank%", rank.getName())));
+                Sound reclaimSound = settingsHandler.reclaimSound();
+                if (reclaimSound != null) {
+                    player.playSound(player.getLocation(), reclaimSound, 1.0F, 1.0F);
                 }
             }
             return true;
@@ -58,7 +69,7 @@ public class ReclaimCommand implements CommandExecutor {
             if (args[0].equalsIgnoreCase("reset") && args.length >= 2) {
                 if (sender.hasPermission("donatorreclaim.commands.reclaim.reset")) {
                     if (args[1].equalsIgnoreCase("all")) {
-                        donatorReclaim.getDonators().resetAll();
+                        donatorsHandler.resetAll();
                         return true;
                     }
                     OfflinePlayer target;
@@ -68,41 +79,39 @@ public class ReclaimCommand implements CommandExecutor {
                         target = donatorReclaim.getServer().getPlayer(args[1]);
                     }
                     if (target == null) {
-                        player.sendMessage(donatorReclaim.getMessages().getString(Message.PLAYEROFFLINE)
-                                .replace("%player%", args[1]));
+                        donatorReclaim.sendMessage(player, messagesHandler.playerOffline().replace("%player%", args[1]));
                         return true;
                     }
 
                     if (args.length == 3) {
                         String rankName = args[2];
-                        Rank rank = donatorReclaim.getSettings().getRank(rankName);
+                        Rank rank = settingsHandler.getRank(rankName);
                         if (rank == null) {
-                            sender.sendMessage(donatorReclaim.getMessages().getString(Message.RECLAIMRANKINVALID)
-                                    .replace("%rank%", rankName));
+                            donatorReclaim.sendMessage(player, messagesHandler.reclaimRankInvalid().replace("%rank%", rankName));
                             return true;
                         }
-                        donatorReclaim.getDonators().removeRank(target, rank);
+                        donatorsHandler.removeRank(target, rank);
                     } else {
-                        donatorReclaim.getDonators().reset(target.getUniqueId());
+                        donatorsHandler.reset(target.getUniqueId());
                     }
                 } else {
-                    sender.sendMessage(donatorReclaim.getMessages().getString(Message.NOPERMISSION));
+                    donatorReclaim.sendMessage(player, messagesHandler.noPermission());
                 }
                 return true;
             } else if (args[0].equalsIgnoreCase("reload")) {
                 if (sender.hasPermission("donatorreclaim.commands.reclaim.reload")) {
-                    donatorReclaim.getSettings().reload();
-                    donatorReclaim.getMessages().reload();
-                    sender.sendMessage(donatorReclaim.getMessages().getString(Message.RELOAD));
+                    settingsHandler.reloadConfig();
+                    messagesHandler.reloadConfig();
+                    donatorReclaim.sendMessage(player, messagesHandler.reload());
                 } else {
-                    sender.sendMessage(donatorReclaim.getMessages().getString(Message.NOPERMISSION));
+                    donatorReclaim.sendMessage(player, messagesHandler.noPermission());
                 }
                 return true;
             } else {
-                sender.sendMessage("      Donator Reclaim Help       ");
-                sender.sendMessage("&8- &6/reclaim");
-                sender.sendMessage("&8- &6/reclaim reset <all/player> [rank]");
-                sender.sendMessage("&8- &6/reclaim reload");
+                donatorReclaim.sendMessage(sender, "      Donator Reclaim Help       ");
+                donatorReclaim.sendMessage(sender, "&8- &6/reclaim");
+                donatorReclaim.sendMessage(sender, "&8- &6/reclaim reset <all/player> [rank]");
+                donatorReclaim.sendMessage(sender, "&8- &6/reclaim reload");
             }
         }
         return false;
